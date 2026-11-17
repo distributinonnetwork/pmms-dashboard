@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMMS Dashboard - Operational Monitoring</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js & DataLabels Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #eef2f6;
+      color: #0f172a;
+    }
+    .card-navy {
+      background: linear-gradient(135deg, #16325c 0%, #2b5899 100%);
+      color: #ffffff;
+      box-shadow: 0 10px 15px -3px rgba(22, 50, 92, 0.25);
+    }
+    .card-white {
+      background: #ffffff;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen pb-10">
+
+  <!-- HALAMAN LOGIN UTAMA (FULL SCREEN) -->
+  <div id="loginScreen" class="fixed inset-0 z-50 bg-gradient-to-br from-[#0f2342] via-[#16325c] to-[#244b85] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-7 border border-slate-200">
+      <div class="flex items-center gap-3 mb-2">
+        <div class="w-2 h-8 bg-[#16325c] rounded-sm"></div>
+        <div>
+          <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">PMMS DASHBOARD</h2>
+          <p class="text-xs font-medium text-slate-500">Operational Monitoring Portal</p>
+        </div>
+      </div>
+      
+      <hr class="my-4 border-slate-100">
+      
+      <p class="text-xs text-slate-500 mb-5">Silakan login menggunakan akun operasional yang telah diberikan untuk mengakses laporan.</p>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Username / NIK</label>
+          <input type="text" id="usernameInput" placeholder="Contoh: admin" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#16325c] text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Password</label>
+          <input type="password" id="passwordInput" placeholder="••••••••" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#16325c] text-sm" />
+        </div>
+        <p id="loginError" class="text-xs text-red-600 hidden font-semibold bg-red-50 p-2.5 rounded border border-red-200">Username atau password salah!</p>
+        <button type="button" onclick="processLogin()" class="w-full py-3 rounded-lg bg-[#16325c] text-white text-sm font-bold hover:bg-[#1e437a] shadow-md transition cursor-pointer">
+          Masuk ke Dashboard
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTAINER (DISEMBUNYIKAN DEFAULT DENGAN CLASS 'hidden') -->
+  <div id="mainDashboardContainer" class="hidden max-w-5xl mx-auto px-4 sm:px-6 pt-6">
+    
+    <!-- HEADER BAR -->
+    <header class="flex items-center justify-between mb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-2 h-9 bg-[#16325c] rounded-sm"></div>
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">PMMS DASHBOARD</h1>
+          <div class="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+            <span id="syncStatusDot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span id="syncStatusText">Menghubungkan ke Apps Script...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MENU GARIS 3 (HAMBURGER) POJOK KANAN ATAS -->
+      <div class="relative">
+        <button id="menuBtn" onclick="toggleDropdownMenu()" class="p-2.5 rounded-xl bg-white shadow-sm border border-slate-200 hover:bg-slate-50 transition focus:outline-none cursor-pointer">
+          <svg class="w-6 h-6 text-slate-800" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+
+        <!-- Dropdown Menu -->
+        <div id="userDropdown" class="hidden absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-40">
+          <div class="px-4 py-2.5 border-b border-slate-100">
+            <p class="text-xs text-slate-400 font-medium">Akun Aktif</p>
+            <p id="userStatusLabel" class="text-sm font-bold text-emerald-600">-</p>
+          </div>
+          <button onclick="fetchGoogleSheetData()" class="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer">
+            <span>🔄</span> Refresh Data Sheets
+          </button>
+          <button id="authActionBtn" onclick="handleAuthClick()" class="w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer">
+            <span>🚪</span> Logout
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- AREA SELECTOR DROPDOWN -->
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div class="relative inline-block w-full sm:w-64">
+        <select id="areaSelector" onchange="renderDashboard()" class="appearance-none w-full bg-[#16325c] hover:bg-[#1e437a] text-white font-bold text-base px-4 py-2.5 pr-10 rounded-lg shadow-md cursor-pointer focus:outline-none transition">
+          <option value="ALL AREA">ALL AREA</option>
+          <option value="CITEUREUP">CITEUREUP</option>
+          <option value="PALIMANAN">PALIMANAN</option>
+          <option value="GEROBOGAN T29">GEROBOGAN T29</option>
+          <option value="GEROBOGAN SGB">GEROBOGAN SGB</option>
+        </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-white">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+        </div>
+      </div>
+
+      <div class="text-xs sm:text-sm font-medium text-slate-600 bg-white px-3.5 py-2 rounded-lg border border-slate-200 shadow-sm">
+        Menampilkan Data: <span id="activeDateLabel" class="font-bold text-[#16325c]">-</span>
+      </div>
+    </div>
+
+    <!-- TOP GRID: KPI CARDS + INTERACTIVE CALENDAR -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+      <div class="md:col-span-2 grid grid-cols-2 gap-4" id="kpiLeftGrid"></div>
+
+      <div class="flex flex-col gap-4">
+        <!-- MINI CALENDAR WIDGET -->
+        <div class="card-white rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
+            <button onclick="changeMonth(-1)" class="p-1 hover:bg-slate-100 rounded text-slate-600 text-xs font-bold cursor-pointer">&lt;</button>
+            <div class="text-xs font-extrabold tracking-wide text-slate-800 uppercase" id="calendarMonthYear">NOVEMBER 2026</div>
+            <button onclick="changeMonth(1)" class="p-1 hover:bg-slate-100 rounded text-slate-600 text-xs font-bold cursor-pointer">&gt;</button>
+          </div>
+          <div class="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-1">
+            <div class="text-red-400">Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+          </div>
+          <div id="calendarDaysGrid" class="grid grid-cols-7 gap-1 text-center text-xs font-semibold"></div>
+        </div>
+
+        <!-- KARTU KPI KE-5 -->
+        <div id="kpiFifthCard" class="card-white rounded-xl p-5 flex flex-col justify-center items-center text-center flex-1"></div>
+      </div>
+    </div>
+
+    <!-- MIDDLE ROW: BAR CHART & DONUT 1 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+      <div class="md:col-span-2 card-white rounded-xl p-5">
+        <h3 class="text-base font-bold text-slate-800 mb-3">Persebaran Pallet</h3>
+        <div class="h-60 w-full"><canvas id="persebaranChart"></canvas></div>
+      </div>
+
+      <div class="card-white rounded-xl p-5 flex flex-col justify-between">
+        <h3 class="text-base font-bold text-slate-800 text-center mb-2">Titip Pinjam</h3>
+        <div class="flex justify-between items-center px-2 mb-1">
+          <span class="bg-[#16325c] text-white text-xs font-bold px-2.5 py-1 rounded" id="badgePinjam">0</span>
+          <span class="bg-[#f59e0b] text-white text-xs font-bold px-2.5 py-1 rounded" id="badgeTitip">0</span>
+        </div>
+        <div class="h-44 w-full flex justify-center"><canvas id="titipPinjamChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- BOTTOM ROW: LINE CHART & DONUT 2 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="md:col-span-2 card-white rounded-xl p-5">
+        <h3 class="text-base font-bold text-slate-800 mb-3">TBR vs Repair (7 Hari Terakhir)</h3>
+        <div class="h-60 w-full"><canvas id="tbrRepairChart"></canvas></div>
+      </div>
+
+      <div class="card-white rounded-xl p-5 flex flex-col justify-between">
+        <h3 class="text-base font-bold text-slate-800 text-center mb-2">Pallet Movement</h3>
+        <div class="flex justify-between items-center px-2 mb-1">
+          <span class="bg-[#16325c] text-white text-xs font-bold px-2.5 py-1 rounded" id="badgePalletOut">0</span>
+          <span class="bg-[#f59e0b] text-white text-xs font-bold px-2.5 py-1 rounded" id="badgePalletIn">0</span>
+        </div>
+        <div class="h-44 w-full flex justify-center"><canvas id="movementChart"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. KONFIGURASI GOOGLE APPS SCRIPT & AKUN LOGIN
+    // =========================================================================
+    const GOOGLE_SHEET_CSV_URL = "https://script.google.com/macros/s/AKfycbxYu6GPfCy_0_Pj-G0n4TCVh3EgFDo_MM_qwDcaYwUhBXJJCLNcEDP0xFP_EaGZSzQ4Lg/exec";
+
+    const ALLOWED_USERS = [
+      { user: "tommy", pass: "pmms2026", nama: "Tommy Alexander" },
+      { user: "lina", pass: "pmms2026", nama: "Lina" },
+      { user: "yurry", pass: "pmms2026", nama: "Yurry Bariki" },
+      { user: "lina", pass: "pmms2026", nama: "Fitria Damaryanti" }
+    ];
+
+    let currentUser = JSON.parse(localStorage.getItem("pmms_user_session") || "null");
+    let rawData = [];
+    let selectedDate = "2026-11-17";
+    let currentCalYear = 2026;
+    let currentCalMonth = 10;
+
+    let chartPersebaran = null;
+    let chartTitipPinjam = null;
+    let chartTbrRepair = null;
+    let chartMovement = null;
+
+    Chart.register(ChartDataLabels);
+
+    // =========================================================================
+    // 2. DUMMY DATA (CADANGAN JIKA OFFLINE)
+    // =========================================================================
+    const FALLBACK_DATA = [
+      { Tanggal: "2026-11-17", Area: "CITEUREUP", Stok_Keseluruhan: 44125, PMMS: 2045, RFI: 1045, RFI_Trend: 12, TBR: 700, BER: 300, Dist_PMMS: 3036, Dist_Plant: 4766, Dist_ITP: 6514, Dist_WAD: 17679, Dist_TRSeries: 1926, Dist_Toko: 0, Dist_Transporter: 10161, Titip: 4427, Pinjam: 1448, TBR_IN: 400, Repair: 310, Pallet_In: 55640, Pallet_Out: 51254 },
+      { Tanggal: "2026-11-17", Area: "PALIMANAN", Stok_Keseluruhan: 35797, PMMS: 1500, RFI: 800, RFI_Trend: 6, TBR: 400, BER: 300, Dist_PMMS: 1500, Dist_Plant: 100, Dist_ITP: 8000, Dist_WAD: 15000, Dist_TRSeries: 0, Dist_Toko: 100, Dist_Transporter: 11097, Titip: 2000, Pinjam: 700, TBR_IN: 550, Repair: 420, Pallet_In: 25000, Pallet_Out: 28000 },
+      { Tanggal: "2026-11-17", Area: "GEROBOGAN T29", Stok_Keseluruhan: 19682, PMMS: 1200, RFI: 600, RFI_Trend: -2, TBR: 400, BER: 200, Dist_PMMS: 800, Dist_Plant: 34, Dist_ITP: 4000, Dist_WAD: 7000, Dist_TRSeries: 0, Dist_Toko: 100, Dist_Transporter: 7748, Titip: 1200, Pinjam: 452, TBR_IN: 380, Repair: 350, Pallet_In: 12000, Pallet_Out: 12000 },
+      { Tanggal: "2026-11-17", Area: "GEROBOGAN SGB", Stok_Keseluruhan: 7024, PMMS: 1030, RFI: 500, RFI_Trend: 9, TBR: 330, BER: 200, Dist_PMMS: 439, Dist_Plant: 0, Dist_ITP: 2027, Dist_WAD: 2358, Dist_TRSeries: 0, Dist_Toko: 24, Dist_Transporter: 2176, Titip: 773, Pinjam: 200, TBR_IN: 240, Repair: 250, Pallet_In: 8120, Pallet_Out: 6746 }
+    ];
+
+    // =========================================================================
+    // 3. FETCH DATA DARI GOOGLE APPS SCRIPT
+    // =========================================================================
+    async function fetchGoogleSheetData() {
+      const statusDot = document.getElementById("syncStatusDot");
+      const statusText = document.getElementById("syncStatusText");
+
+      if (!GOOGLE_SHEET_CSV_URL) {
+        rawData = FALLBACK_DATA;
+        statusDot.className = "w-2 h-2 rounded-full bg-amber-500";
+        statusText.textContent = "Mode Preview (Tempel Web Apps URL Google Script)";
+        initApp();
+        return;
+      }
+
+      try {
+        statusDot.className = "w-2 h-2 rounded-full bg-blue-500 animate-ping";
+        statusText.textContent = "Menarik data terbaru dari Google Apps Script...";
+
+        const urlWithTimestamp = GOOGLE_SHEET_CSV_URL + (GOOGLE_SHEET_CSV_URL.includes("?") ? "&" : "?") + "t=" + new Date().getTime();
+        const response = await fetch(urlWithTimestamp);
+        if (!response.ok) throw new Error("Gagal mengambil data JSON");
+        
+        const jsonData = await response.json();
+
+        rawData = jsonData.map(row => ({
+          ...row,
+          Tanggal: String(row.Tanggal || "").trim().split("T")[0],
+          Area: String(row.Area || "").trim().toUpperCase()
+        }));
+
+        const uniqueDates = [...new Set(rawData.map(d => d.Tanggal))].sort();
+        if (uniqueDates.length > 0 && !uniqueDates.includes(selectedDate)) {
+          selectedDate = uniqueDates[uniqueDates.length - 1];
+          const parts = selectedDate.split("-");
+          if (parts.length === 3) {
+            currentCalYear = parseInt(parts[0]);
+            currentCalMonth = parseInt(parts[1]) - 1;
+          }
+        }
+
+        statusDot.className = "w-2 h-2 rounded-full bg-emerald-500";
+        statusText.textContent = `Live Apps Script • Update: ${new Date().toLocaleTimeString('id-ID')}`;
+        initApp();
+      } catch (err) {
+        console.error(err);
+        rawData = FALLBACK_DATA;
+        statusDot.className = "w-2 h-2 rounded-full bg-red-500";
+        statusText.textContent = "Gagal memuat API (Menggunakan data cadangan)";
+        initApp();
+      }
+    }
+
+    function fmt(num) {
+      return Math.round(num || 0).toLocaleString("id-ID");
+    }
+
+    // =========================================================================
+    // 4. KALENDER INTERAKTIF
+    // =========================================================================
+    function renderCalendar() {
+      const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+      document.getElementById("calendarMonthYear").textContent = `${monthNames[currentCalMonth]} ${currentCalYear}`;
+
+      const firstDay = new Date(currentCalYear, currentCalMonth, 1).getDay();
+      const daysInMonth = new Date(currentCalYear, currentCalMonth + 1, 0).getDate();
+      const grid = document.getElementById("calendarDaysGrid");
+      grid.innerHTML = "";
+
+      const availableDates = new Set(rawData.map(r => r.Tanggal));
+
+      for (let i = 0; i < firstDay; i++) {
+        grid.innerHTML += `<div></div>`;
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const mm = String(currentCalMonth + 1).padStart(2, "0");
+        const dd = String(day).padStart(2, "0");
+        const dateStr = `${currentCalYear}-${mm}-${dd}`;
+        const isSelected = dateStr === selectedDate;
+        const hasData = availableDates.has(dateStr);
+
+        let btnClass = "py-1 rounded-md transition cursor-pointer relative ";
+        if (isSelected) btnClass += "bg-[#16325c] text-white font-extrabold shadow-sm";
+        else if (hasData) btnClass += "bg-blue-50 text-[#16325c] hover:bg-blue-100 font-bold";
+        else btnClass += "text-slate-400 hover:bg-slate-100";
+
+        const dotHtml = hasData && !isSelected ? `<span class="w-1 h-1 bg-blue-500 rounded-full mx-auto block mt-0.5"></span>` : "";
+        grid.innerHTML += `<button onclick="selectDate('${dateStr}')" class="${btnClass}">${day}${dotHtml}</button>`;
+      }
+    }
+
+    function changeMonth(delta) {
+      currentCalMonth += delta;
+      if (currentCalMonth > 11) { currentCalMonth = 0; currentCalYear++; }
+      if (currentCalMonth < 0) { currentCalMonth = 11; currentCalYear--; }
+      renderCalendar();
+    }
+
+    function selectDate(dateStr) {
+      selectedDate = dateStr;
+      renderCalendar();
+      renderDashboard();
+    }
+
+    // =========================================================================
+    // 5. RENDER DASHBOARD
+    // =========================================================================
+    function renderDashboard() {
+      const selectedArea = document.getElementById("areaSelector").value;
+      const dateObj = new Date(selectedDate + "T00:00:00");
+      document.getElementById("activeDateLabel").textContent = dateObj.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+
+      const rowsOnDate = rawData.filter(r => r.Tanggal === selectedDate);
+      const kpiLeftGrid = document.getElementById("kpiLeftGrid");
+      const kpiFifthCard = document.getElementById("kpiFifthCard");
+
+      let currentMetrics = {
+        Dist_PMMS: 0, Dist_Plant: 0, Dist_ITP: 0, Dist_WAD: 0, Dist_TRSeries: 0, Dist_Toko: 0, Dist_Transporter: 0,
+        Titip: 0, Pinjam: 0, Pallet_In: 0, Pallet_Out: 0
+      };
+
+      if (selectedArea === "ALL AREA") {
+        const getAreaStock = (areaName) => {
+          const found = rowsOnDate.find(r => r.Area === areaName);
+          return found ? Number(found.Stok_Keseluruhan || 0) : 0;
+        };
+
+        rowsOnDate.forEach(r => {
+          Object.keys(currentMetrics).forEach(k => {
+            currentMetrics[k] += Number(r[k] || 0);
+          });
+        });
+
+        const totalAll = rowsOnDate.reduce((sum, r) => sum + Number(r.Stok_Keseluruhan || 0), 0);
+
+        kpiLeftGrid.innerHTML = `
+          <div onclick="quickSelectArea('CITEUREUP')" class="card-navy rounded-xl p-5 cursor-pointer hover:scale-[1.01] transition">
+            <div class="text-xs sm:text-sm font-bold tracking-wider uppercase opacity-90">CITEUREUP</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-center my-4 tracking-tight">${fmt(getAreaStock("CITEUREUP"))}</div>
+          </div>
+          <div onclick="quickSelectArea('PALIMANAN')" class="card-navy rounded-xl p-5 cursor-pointer hover:scale-[1.01] transition">
+            <div class="text-xs sm:text-sm font-bold tracking-wider uppercase opacity-90">PALIMANAN</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-center my-4 tracking-tight">${fmt(getAreaStock("PALIMANAN"))}</div>
+          </div>
+          <div onclick="quickSelectArea('GEROBOGAN T29')" class="card-navy rounded-xl p-5 cursor-pointer hover:scale-[1.01] transition">
+            <div class="text-xs sm:text-sm font-bold tracking-wider uppercase opacity-90">GEROBOGAN T29</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-center my-4 tracking-tight">${fmt(getAreaStock("GEROBOGAN T29"))}</div>
+          </div>
+          <div onclick="quickSelectArea('GEROBOGAN SGB')" class="card-navy rounded-xl p-5 cursor-pointer hover:scale-[1.01] transition">
+            <div class="text-xs sm:text-sm font-bold tracking-wider uppercase opacity-90">GEROBOGAN SGB</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-center my-4 tracking-tight">${fmt(getAreaStock("GEROBOGAN SGB"))}</div>
+          </div>
+        `;
+
+        kpiFifthCard.innerHTML = `
+          <div class="text-sm font-bold text-slate-700 w-full text-left">Total Pallet PMMS</div>
+          <div class="text-3xl sm:text-4xl font-extrabold text-slate-900 my-auto py-2">${fmt(totalAll)}</div>
+        `;
+      } else {
+        const areaRow = rowsOnDate.find(r => r.Area === selectedArea) || {};
+        Object.keys(currentMetrics).forEach(k => {
+          currentMetrics[k] = Number(areaRow[k] || 0);
+        });
+
+        const trendVal = Number(areaRow.RFI_Trend || 0);
+        const trendHtml = trendVal >= 0 
+          ? `<span class="text-emerald-600 font-bold text-sm flex items-center justify-center gap-1 mt-1">▲ ${trendVal}%</span>`
+          : `<span class="text-red-600 font-bold text-sm flex items-center justify-center gap-1 mt-1">▼ ${Math.abs(trendVal)}%</span>`;
+
+        kpiLeftGrid.innerHTML = `
+          <div class="card-navy rounded-xl p-5">
+            <div class="text-xs sm:text-sm font-bold tracking-wider opacity-90">Stok Keseluruhan</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-center my-4 tracking-tight">${fmt(areaRow.Stok_Keseluruhan)}</div>
+          </div>
+          <div class="card-navy rounded-xl p-5">
+            <div class="text-xs sm:text-sm font-bold tracking-wider opacity-90">PMMS</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-center my-4 tracking-tight">${fmt(areaRow.PMMS)}</div>
+          </div>
+          <div class="card-white rounded-xl p-5">
+            <div class="text-xs sm:text-sm font-bold text-slate-700">RFI</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-slate-900 text-center mt-3">${fmt(areaRow.RFI)}</div>
+            ${trendHtml}
+          </div>
+          <div class="card-white rounded-xl p-5">
+            <div class="text-xs sm:text-sm font-bold text-slate-700">TBR</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-slate-900 text-center my-4">${fmt(areaRow.TBR)}</div>
+          </div>
+        `;
+
+        kpiFifthCard.innerHTML = `
+          <div class="text-sm font-bold text-slate-700 w-full text-left">BER</div>
+          <div class="text-3xl sm:text-4xl font-extrabold text-slate-900 my-auto py-2">${fmt(areaRow.BER)}</div>
+        `;
+      }
+
+      updateCharts(selectedArea, currentMetrics);
+    }
+
+    function quickSelectArea(areaName) {
+      document.getElementById("areaSelector").value = areaName;
+      renderDashboard();
+    }
+
+    // =========================================================================
+    // 6. UPDATE GRAFIK
+    // =========================================================================
+    function updateCharts(selectedArea, metrics) {
+      const isAll = selectedArea === "ALL AREA";
+      const barLabels = isAll 
+        ? ["PMMS", "Plant", "Gudang ITP", "Gudang WAD", "TR Series", "Toko", "Transporter"]
+        : [`PMMS ${selectedArea}`, "Plant", "ITP", "WAD", "TR Series", "Transporter"];
+
+      const barValues = isAll
+        ? [metrics.Dist_PMMS, metrics.Dist_Plant, metrics.Dist_ITP, metrics.Dist_WAD, metrics.Dist_TRSeries, metrics.Dist_Toko, metrics.Dist_Transporter]
+        : [metrics.Dist_PMMS, metrics.Dist_Plant, metrics.Dist_ITP, metrics.Dist_WAD, metrics.Dist_TRSeries, metrics.Dist_Transporter];
+
+      if (chartPersebaran) chartPersebaran.destroy();
+      const ctxBar = document.getElementById("persebaranChart").getContext("2d");
+      const barGradient = ctxBar.createLinearGradient(0, 0, 0, 220);
+      barGradient.addColorStop(0, "#fbbf24");
+      barGradient.addColorStop(1, "#ea580c");
+
+      chartPersebaran = new Chart(ctxBar, {
+        type: "bar",
+        data: {
+          labels: barLabels,
+          datasets: [{
+            data: barValues,
+            backgroundColor: barGradient,
+            borderRadius: 4,
+            barPercentage: 0.55
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: { top: 24 } },
+          plugins: {
+            legend: { display: false },
+            datalabels: {
+              anchor: "end",
+              align: "top",
+              color: "#334155",
+              font: { weight: "bold", size: 11 },
+              formatter: (val) => val
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10, weight: "600" } } },
+            y: { beginAtZero: true, border: { display: false }, grid: { color: "#f1f5f9" }, ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+
+      document.getElementById("badgePinjam").textContent = metrics.Pinjam;
+      document.getElementById("badgeTitip").textContent = metrics.Titip;
+
+      if (chartTitipPinjam) chartTitipPinjam.destroy();
+      chartTitipPinjam = new Chart(document.getElementById("titipPinjamChart"), {
+        type: "doughnut",
+        data: {
+          labels: ["Titip", "Pinjam"],
+          datasets: [{
+            data: [metrics.Titip, metrics.Pinjam],
+            backgroundColor: ["#f59e0b", "#16325c"],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "58%",
+          plugins: {
+            datalabels: { display: false },
+            legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11, weight: "600" } } }
+          }
+        }
+      });
+
+      document.getElementById("badgePalletOut").textContent = metrics.Pallet_Out;
+      document.getElementById("badgePalletIn").textContent = metrics.Pallet_In;
+
+      if (chartMovement) chartMovement.destroy();
+      chartMovement = new Chart(document.getElementById("movementChart"), {
+        type: "doughnut",
+        data: {
+          labels: ["Pallet In", "Pallet Out"],
+          datasets: [{
+            data: [metrics.Pallet_In, metrics.Pallet_Out],
+            backgroundColor: ["#f59e0b", "#16325c"],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "58%",
+          plugins: {
+            datalabels: { display: false },
+            legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11, weight: "600" } } }
+          }
+        }
+      });
+
+      const last7Dates = [];
+      const baseDate = new Date(selectedDate + "T00:00:00");
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(baseDate);
+        d.setDate(baseDate.getDate() - i);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        last7Dates.push(`${yyyy}-${mm}-${dd}`);
+      }
+
+      const labels7 = last7Dates.map(d => d.split("-")[2]);
+      const tbrSeries = last7Dates.map(dt => {
+        const matching = rawData.filter(r => r.Tanggal === dt && (isAll || r.Area === selectedArea));
+        return matching.reduce((sum, r) => sum + Number(r.TBR_IN || 0), 0);
+      });
+      const repairSeries = last7Dates.map(dt => {
+        const matching = rawData.filter(r => r.Tanggal === dt && (isAll || r.Area === selectedArea));
+        return matching.reduce((sum, r) => sum + Number(r.Repair || 0), 0);
+      });
+
+      if (chartTbrRepair) chartTbrRepair.destroy();
+      chartTbrRepair = new Chart(document.getElementById("tbrRepairChart"), {
+        type: "line",
+        data: {
+          labels: labels7,
+          datasets: [
+            { label: "TBR IN", data: tbrSeries, borderColor: "#16325c", borderWidth: 3.5, tension: 0.42, pointRadius: 3 },
+            { label: "Repair", data: repairSeries, borderColor: "#f59e0b", borderWidth: 3.5, tension: 0.42, pointRadius: 3 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            datalabels: { display: false },
+            legend: { position: "top", align: "end", labels: { boxWidth: 18, font: { size: 11, weight: "600" } } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { weight: "600" } } },
+            y: { beginAtZero: true, border: { display: false }, grid: { color: "#f1f5f9" } }
+          }
+        }
+      });
+    }
+
+    // =========================================================================
+    // 7. LOGIKA LOGIN & LOGOUT (FULL SCREEN WALL)
+    // =========================================================================
+    function toggleDropdownMenu() {
+      document.getElementById("userDropdown").classList.toggle("hidden");
+    }
+
+    function updateAuthUI() {
+      const loginScreen = document.getElementById("loginScreen");
+      const mainContainer = document.getElementById("mainDashboardContainer");
+      const statusLabel = document.getElementById("userStatusLabel");
+      const authBtn = document.getElementById("authActionBtn");
+
+      if (currentUser) {
+        loginScreen.classList.add("hidden");
+        mainContainer.classList.remove("hidden");
+        statusLabel.textContent = currentUser.nama + " (Aktif)";
+        statusLabel.className = "text-sm font-bold text-emerald-600";
+        authBtn.innerHTML = `<span>🚪</span> Logout`;
+        authBtn.className = "w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer";
+      } else {
+        loginScreen.classList.remove("hidden");
+        mainContainer.classList.add("hidden");
+      }
+    }
+
+    function processLogin() {
+      const u = document.getElementById("usernameInput").value.trim().toLowerCase();
+      const p = document.getElementById("passwordInput").value.trim();
+
+      const validAccount = ALLOWED_USERS.find(acc => acc.user.toLowerCase() === u && acc.pass === p);
+      if (validAccount) {
+        currentUser = validAccount;
+        localStorage.setItem("pmms_user_session", JSON.stringify(validAccount));
+        document.getElementById("loginError").classList.add("hidden");
+        updateAuthUI();
+        fetchGoogleSheetData();
+      } else {
+        document.getElementById("loginError").classList.remove("hidden");
+      }
+    }
+
+    function handleAuthClick() {
+      currentUser = null;
+      localStorage.removeItem("pmms_user_session");
+      document.getElementById("userDropdown").classList.add("hidden");
+      document.getElementById("usernameInput").value = "";
+      document.getElementById("passwordInput").value = "";
+      updateAuthUI();
+    }
+
+    // Izinkan tekan tombol Enter di kolom password untuk langsung login
+    document.getElementById("passwordInput").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        processLogin();
+      }
+    });
+
+    window.addEventListener("click", function(e) {
+      if (!document.getElementById("menuBtn")?.contains(e.target) && !document.getElementById("userDropdown")?.contains(e.target)) {
+        document.getElementById("userDropdown")?.classList.add("hidden");
+      }
+    });
+
+    function initApp() {
+      updateAuthUI();
+      if (currentUser) {
+        renderCalendar();
+        renderDashboard();
+      }
+    }
+
+    // Inisialisasi awal saat web dibuka
+    updateAuthUI();
+    if (currentUser) {
+      fetchGoogleSheetData();
+    }
+  </script>
+</body>
+</html>
